@@ -1,0 +1,19 @@
+module Remit.Compliance where
+
+-- Issued by the provider after identity checks. Settlement refuses to run without a valid one.
+template KycAttestation
+  with
+    provider : Party
+    subject : Party
+    regulator : Party
+    limitCurrency : Text
+    perTransferLimit : Decimal
+    validUntil : Time
+  where
+    signatory provider
+    observer subject, regulator
+    ensure perTransferLimit > 0.0
+
+    choice Revoke : ()
+      controller provider
+      do pure ()

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swiftline repeat sends</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit}
+.cta:hover{background:#1D3FC0 !important}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F5F7FB; color: #0B1B33; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+<div style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 56px 20px 16px; display: flex; flex-direction: column; gap: 18px">
+
+<div style="display: flex; align-items: center; gap: 12px">
+<a href="Home.dc.html" aria-label="Back to home" style="width: 52px; height: 52px; border-radius: 16px; border: 2px solid #D5DCEB; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B1B33" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+<span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em">Repeat sends</span>
+</div>
+
+<p style="margin: 0; font-size: 19px; line-height: 1.5; color: #44546D">Send the same amount on a schedule, so family gets support without you having to remember.</p>
+
+<div style="background: #FFFFFF; border: 2px solid #E1E7F2; border-radius: 20px; padding: 18px; display: flex; align-items: center; gap: 14px">
+<span style="width: 52px; height: 52px; border-radius: 50%; background: #FFE9D2; color: #9A3F00; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px">RK</span>
+<div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 700; font-size: 19px">200.00 USD to Ravi</span><span style="font-size: 16px; color: #44546D">Every month. Next: Dec 1</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-weight: 600; font-size: 20px">Set up a new one</span>
+<div style="background: #FFFFFF; border: 2px solid #E1E7F2; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 16px; color: #44546D">Amount</span>
+<span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 30px">200.00 USD</span>
+</div>
+<span style="font-size: 17px; font-weight: 600; margin-top: 6px">How often?</span>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{options}}" as="o" hint-placeholder-count="3">
+<button onClick="{{o.pick}}" style="min-height: 60px; border-radius: 16px; border: 2px solid {{o.border}}; background: {{o.bg}}; color: {{o.fg}}; font-weight: 700; font-size: 19px; cursor: pointer; text-align: left; padding: 0 20px">{{o.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="background: #E8EEFF; border-radius: 16px; padding: 14px 16px; font-size: 16px; line-height: 1.5; color: #1B2E55">{{summary}} You can pause or stop it at any time.</div>
+
+</div>
+
+<div style="flex: 0 0 auto; padding: 12px 20px 32px; background: #FFFFFF; border-top: 2px solid #E1E7F2">
+<a class="cta" href="Home.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 64px; border-radius: 18px; background: #2F5BFF; color: #FFFFFF; font-weight: 700; font-size: 20px">Set up repeat send</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { freq: 'month' };
+}
+renderVals() {
+const opts = [
+{ id: 'week', label: 'Every week', text: 'Ravi will get 200.00 USD every week.' },
+{ id: 'two', label: 'Every two weeks', text: 'Ravi will get 200.00 USD every two weeks.' },
+{ id: 'month', label: 'Every month', text: 'Ravi will get 200.00 USD every month.' }
+];
+const cur = opts.find((o) => o.id === this.state.freq) || opts[2];
+return {
+options: opts.map((o) => {
+const on = o.id === this.state.freq;
+return {
+label: o.label,
+bg: on ? '#2F5BFF' : '#FFFFFF',
+fg: on ? '#FFFFFF' : '#0B1B33',
+border: on ? '#2F5BFF' : '#D5DCEB',
+pick: () => this.setState({ freq: o.id })
+};
+}),
+summary: cur.text
+};
+}
+}
+</script>
+</body>
+</html>

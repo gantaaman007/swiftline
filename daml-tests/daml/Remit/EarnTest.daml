@@ -1,0 +1,124 @@
+module Remit.EarnTest where
+
+import Daml.Script
+import DA.Assert
+import DA.Time
+import Remit.Token
+import Remit.Earn
+
+data Cast = Cast with
+  issuer : Party
+  provider : Party
+  owner : Party
+  other : Party
+
+makeCast : Script Cast
+makeCast = do
+  issuer <- allocateParty "Issuer"
+  provider <- allocateParty "Provider"
+  owner <- allocateParty "Saver"
+  other <- allocateParty "Other"
+  pure Cast with ..
+
+mint : Cast -> Party -> Text -> Decimal -> Script (ContractId Holding)
+mint c who cur amt = submit c.issuer do
+  createCmd Holding with issuer = c.issuer; owner = who; currency = cur; amount = amt; viewers = []
+
+-- 5% a year, 30-day lock, minimum 50.
+offer : Cast -> Script (ContractId StakeOffer)
+offer c = submit c.provider do
+  createCmd StakeOffer with
+    provider = c.provider; owner = c.owner; currency = "USD"
+    apr = 0.05; lockDays = 30; minAmount = 50.0
+
+start : Cast -> Script (ContractId Stake)
+start c = do
+  o <- offer c
+  h <- mint c c.owner "USD" 1000.0
+  submit c.owner do exerciseCmd o StartStake with holdingCid = h
+
+redeemAfter : Cast -> RelTime -> Script (ContractId Holding, Optional (ContractId Holding))
+redeemAfter c wait = do
+  s <- start c
+  reserve <- mint c c.provider "USD" 100.0
+  passTime wait
+  submit c.provider do exerciseCmd s Redeem with reserveCid = reserve
+
+-- 1000 * 5% * 30/365 = 4.1095... -> 4.10
+testFullTermInterest : Script ()
+testFullTermInterest = do
+  c <- makeCast
+  (back, Some paid) <- redeemAfter c (days 30)
+  Some p <- queryContractId c.owner back
+  p.amount === 1000.0
+  Some i <- queryContractId c.owner paid
+  i.amount === 4.10
+
+-- 1000 * 5% * 10/365 = 1.3698... -> 1.36
+testEarlyRedeemPartialInterest : Script ()
+testEarlyRedeemPartialInterest = do
+  c <- makeCast
+  (_, Some paid) <- redeemAfter c (days 10)
+  Some i <- queryContractId c.owner paid
+  i.amount === 1.36
+
+-- Interest stops at maturity: 60 days still pays 4.10.
+testInterestStopsAtMaturity : Script ()
+testInterestStopsAtMaturity = do
+  c <- makeCast
+  (_, Some paid) <- redeemAfter c (days 60)
+  Some i <- queryContractId c.owner paid
+  i.amount === 4.10
+
+testBelowMinimumFails : Script ()
+testBelowMinimumFails = do
+  c <- makeCast
+  o <- offer c
+  h <- mint c c.owner "USD" 10.0
+  submitMustFail c.owner do exerciseCmd o StartStake with holdingCid = h
+
+testWrongCurrencyFails : Script ()
+testWrongCurrencyFails = do
+  c <- makeCast
+  o <- offer c
+  h <- mint c c.owner "EUR" 1000.0
+  submitMustFail c.owner do exerciseCmd o StartStake with holdingCid = h
+
+testOnlyOwnerCanStart : Script ()
+testOnlyOwnerCanStart = do
+  c <- makeCast
+  o <- offer c
+  h <- mint c c.owner "USD" 1000.0
+  submitMustFail c.other do exerciseCmd o StartStake with holdingCid = h
+
+testClaimPrincipalAfterMaturity : Script ()
+testClaimPrincipalAfterMaturity = do
+  c <- makeCast
+  s <- start c
+  passTime (days 31)
+  back <- submit c.owner do exerciseCmd s ClaimPrincipal
+  Some p <- queryContractId c.owner back
+  p.amount === 1000.0
+
+testClaimBeforeMaturityFails : Script ()
+testClaimBeforeMaturityFails = do
+  c <- makeCast
+  s <- start c
+  passTime (days 5)
+  submitMustFail c.owner do exerciseCmd s ClaimPrincipal
+
+testSmallReserveFails : Script ()
+testSmallReserveFails = do
+  c <- makeCast
+  s <- start c
+  tiny <- mint c c.provider "USD" 1.0
+  passTime (days 30)
+  submitMustFail c.provider do exerciseCmd s Redeem with reserveCid = tiny
+
+testOnlyProviderCanRedeem : Script ()
+testOnlyProviderCanRedeem = do
+  c <- makeCast
+  s <- start c
+  reserve <- mint c c.provider "USD" 100.0
+  passTime (days 30)
+  submitMustFail c.owner do exerciseCmd s Redeem with reserveCid = reserve

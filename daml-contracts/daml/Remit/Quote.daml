@@ -1,0 +1,71 @@
+module Remit.Quote where
+
+import Remit.Token
+import Remit.Transfer
+
+-- Round down to cents so the provider never pays out more than the quote allows.
+roundDown2 : Decimal -> Decimal
+roundDown2 x = intToDecimal (truncate (x * 100.0)) / 100.0
+
+-- A price offered by the provider to one sender. Accepting it locks the rate and fee.
+template Quote
+  with
+    provider : Party
+    sender : Party
+    fromCurrency : Text
+    toCurrency : Text
+    rate : Decimal
+    feeRate : Decimal
+    minFee : Decimal
+    expiresAt : Time
+  where
+    signatory provider
+    observer sender
+    ensure rate > 0.0 && feeRate >= 0.0 && minFee >= 0.0 && fromCurrency /= toCurrency
+
+    choice AcceptQuote : ContractId RemitTransfer
+      with
+        recipient : Party
+        regulator : Party
+        sendAmount : Decimal
+        holdingCid : ContractId Holding
+        settleBy : Time
+      controller sender
+      do
+        now <- getTime
+        assertMsg "This quote has expired" (now <= expiresAt)
+        assertMsg "Send amount must be positive" (sendAmount > 0.0)
+
+        holding <- fetch holdingCid
+        assertMsg "That money does not belong to the sender" (holding.owner == sender)
+        assertMsg "That money is in a different currency" (holding.currency == fromCurrency)
+        assertMsg "Not enough money to send" (holding.amount >= sendAmount)
+
+        let fee = roundDown2 (max minFee (sendAmount * feeRate))
+        assertMsg "Amount must be larger than the fee" (sendAmount > fee)
+        let receiveAmount = roundDown2 ((sendAmount - fee) * rate)
+
+        -- Take exactly the send amount out of the holding and move it into escrow.
+        toLock <-
+          if holding.amount == sendAmount
+            then pure holdingCid
+            else fst <$> exercise holdingCid Split with splitAmount = sendAmount
+        escrowCid <- exercise toLock Lock with newOwner = provider; viewer = sender
+
+        create RemitTransfer with
+          provider = provider
+          sender = sender
+          recipient = recipient
+          regulator = regulator
+          fromCurrency = fromCurrency
+          toCurrency = toCurrency
+          sendAmount = sendAmount
+          fee = fee
+          receiveAmount = receiveAmount
+          rate = rate
+          escrowCid = escrowCid
+          settleBy = settleBy
+
+    choice Decline : ()
+      controller sender
+      do pure ()

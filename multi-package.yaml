@@ -1,0 +1,3 @@
+packages:
+  - ./daml-contracts
+  - ./daml-tests

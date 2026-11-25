@@ -1,0 +1,90 @@
+module Remit.Earn where
+
+import DA.Time
+import Remit.Token
+import Remit.Quote (roundDown2)
+
+-- The provider offers a person an interest rate for locking money for a fixed period.
+template StakeOffer
+  with
+    provider : Party
+    owner : Party
+    currency : Text
+    apr : Decimal        -- yearly rate, e.g. 0.05 for 5%
+    lockDays : Int
+    minAmount : Decimal
+  where
+    signatory provider
+    observer owner
+
+    -- The owner locks a holding. The money moves to the provider as a locked deposit,
+    -- but the owner can still see it (see Lock in Token.daml).
+    choice StartStake : ContractId Stake
+      with
+        holdingCid : ContractId Holding
+      controller owner
+      do
+        now <- getTime
+        h <- fetch holdingCid
+        assertMsg "That money is not yours" (h.owner == owner)
+        assertMsg "Wrong currency for this offer" (h.currency == currency)
+        assertMsg "Below the minimum amount" (h.amount >= minAmount)
+        lockedCid <- exercise holdingCid Lock with newOwner = provider; viewer = owner
+        create Stake with
+          provider = provider
+          owner = owner
+          currency = currency
+          principal = h.amount
+          apr = apr
+          startedAt = now
+          maturesAt = addRelTime now (days lockDays)
+          lockedCid = lockedCid
+
+-- A running deposit. Simple interest, counted per second, and it stops growing at maturity.
+template Stake
+  with
+    provider : Party
+    owner : Party
+    currency : Text
+    principal : Decimal
+    apr : Decimal
+    startedAt : Time
+    maturesAt : Time
+    lockedCid : ContractId Holding
+  where
+    signatory provider, owner
+
+    -- Pay back the principal plus interest earned so far. The provider pays the interest
+    -- from its own reserve funds. Returns (principal, interest if any).
+    choice Redeem : (ContractId Holding, Optional (ContractId Holding))
+      with
+        reserveCid : ContractId Holding
+      controller provider
+      do
+        now <- getTime
+        let counted = if now < maturesAt then now else maturesAt
+            micros = convertRelTimeToMicroseconds (subTime counted startedAt)
+            interest = roundDown2 (principal * apr * intToDecimal micros / (365.0 * 86400000000.0))
+        back <- exercise lockedCid MoveTo with newOwner = owner
+        if interest > 0.0
+          then do
+            reserve <- fetch reserveCid
+            assertMsg "Reserve must belong to the provider" (reserve.owner == provider)
+            assertMsg "Reserve currency does not match" (reserve.currency == currency)
+            assertMsg "Not enough reserve to pay the interest" (reserve.amount >= interest)
+            toPay <-
+              if reserve.amount == interest
+                then pure reserveCid
+                else fst <$> exercise reserveCid Split with splitAmount = interest
+            paid <- exercise toPay MoveTo with newOwner = owner
+            pure (back, Some paid)
+          else pure (back, None)
+
+    -- Safety net: after maturity the owner can take the principal back alone,
+    -- even if the provider never pays. (Interest then needs the provider.)
+    choice ClaimPrincipal : ContractId Holding
+      controller owner
+      do
+        now <- getTime
+        assertMsg "Not matured yet" (now >= maturesAt)
+        exercise lockedCid MoveTo with newOwner = owner

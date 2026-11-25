@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swiftline sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+input{font-family:inherit}
+.cta:hover{background:#1D3FC0 !important}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; background: #F5F7FB; color: #0B1B33; font-family: Inter, system-ui, sans-serif; overflow: hidden; padding: 72px 24px 36px">
+
+<div style="display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0B1B33"/><path d="M9 21c4 0 5-10 9-10m0 0l-3-2m3 2l-2 3M23 11c-4 0-5 10-9 10m0 0l3 2m-3-2l2-3" fill="none" stroke="#7EA0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em">Swiftline</span>
+</div>
+<h1 style="margin: 0; font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 38px; line-height: 1.1; letter-spacing: -0.02em">Send money to family, simply.</h1>
+<p style="margin: 0; font-size: 19px; line-height: 1.5; color: #44546D">Sign in with your phone number. There are no passwords to remember.</p>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<label for="phone" style="font-size: 18px; font-weight: 600">Your phone number</label>
+<input id="phone" type="tel" placeholder="(555) 123-4567" style="box-sizing: border-box; height: 64px; border-radius: 16px; border: 2px solid #9AA8C2; background: #FFFFFF; padding: 0 18px; font-size: 22px; color: #0B1B33">
+</div>
+
+<a class="cta" onClick="{{onStart}}" style="display: flex; align-items: center; justify-content: center; min-height: 64px; border-radius: 16px; background: #2F5BFF; color: #FFFFFF; font-weight: 600; font-size: 20px">{{ctaText}}</a>
+<a onClick="{{onStart}}" style="display: flex; align-items: center; justify-content: center; min-height: 60px; border-radius: 16px; background: #FFFFFF; border: 2px solid #D5DCEB; font-weight: 600; font-size: 18px">Use face or fingerprint</a>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="background: #E8EEFF; border-radius: 16px; padding: 16px 18px; display: flex; gap: 12px; align-items: flex-start">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1D3FC0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: 0 0 auto"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+<span style="font-size: 16px; line-height: 1.45; color: #1B2E55">We keep your account safe for you. No special codes or keys to look after.</span>
+</div>
+<span style="text-align: center; font-size: 16px; color: #44546D">Need help? Call [SUPPORT PHONE]</span>
+<span style="text-align: center; font-size: 14px; color: #C0392B">{{errText}}</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(props) { super(props); this.state = { busy: false, err: '' }; }
+renderVals() {
+return {
+ctaText: this.state.busy ? 'Setting up your demo account...' : 'Continue',
+errText: this.state.err,
+onStart: async () => {
+if (this.state.busy) return;
+this.setState({ busy: true, err: '' });
+try { await this.sw.api('setup', {}); this.sw.go('#/Home'); }
+catch (e) { this.setState({ busy: false, err: e.message }); }
+}
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+module Remit.Transfer where
+
+import Remit.Token
+import Remit.Compliance
+
+-- The permanent record of a completed transfer.
+-- Visible to the provider, sender, recipient, and the regulator only.
+template Receipt
+  with
+    provider : Party
+    sender : Party
+    recipient : Party
+    regulator : Party
+    fromCurrency : Text
+    toCurrency : Text
+    sendAmount : Decimal
+    fee : Decimal
+    receiveAmount : Decimal
+    rate : Decimal
+    settledAt : Time
+  where
+    signatory provider, sender
+    observer recipient, regulator
+
+-- A transfer whose funds are held in escrow by the provider, waiting for settlement.
+template RemitTransfer
+  with
+    provider : Party
+    sender : Party
+    recipient : Party
+    regulator : Party
+    fromCurrency : Text
+    toCurrency : Text
+    sendAmount : Decimal
+    fee : Decimal
+    receiveAmount : Decimal
+    rate : Decimal
+    escrowCid : ContractId Holding
+    settleBy : Time
+  where
+    signatory provider, sender
+    observer recipient, regulator
+
+    -- Run the compliance checks, pay the recipient, and write the receipt in ONE transaction.
+    -- If any check fails, nothing happens at all.
+    choice Settle : (ContractId Holding, ContractId Receipt)
+      with
+        attestationCid : ContractId KycAttestation
+        payoutCid : ContractId Holding
+      controller provider
+      do
+        now <- getTime
+        att <- fetch attestationCid
+        assertMsg "Attestation is for a different person" (att.subject == sender)
+        assertMsg "Attestation has expired" (now <= att.validUntil)
+        assertMsg "Limit is in a different currency" (att.limitCurrency == fromCurrency)
+        assertMsg "Transfer is above the allowed limit" (sendAmount <= att.perTransferLimit)
+
+        payout <- fetch payoutCid
+        assertMsg "Payout funds must belong to the provider" (payout.owner == provider)
+        assertMsg "Payout currency does not match" (payout.currency == toCurrency)
+        assertMsg "Not enough payout funds" (payout.amount >= receiveAmount)
+
+        toPay <-
+          if payout.amount == receiveAmount
+            then pure payoutCid
+            else fst <$> exercise payoutCid Split with splitAmount = receiveAmount
+        paid <- exercise toPay MoveTo with newOwner = recipient
+
+        receipt <- create Receipt with
+          provider = provider
+          sender = sender
+          recipient = recipient
+          regulator = regulator
+          fromCurrency = fromCurrency
+          toCurrency = toCurrency
+          sendAmount = sendAmount
+          fee = fee
+          receiveAmount = receiveAmount
+          rate = rate
+          settledAt = now
+        pure (paid, receipt)
+
+    -- The provider can refuse a transfer (for example after a failed check). Funds go back.
+    choice Reject : ContractId Holding
+      controller provider
+      do exercise escrowCid MoveTo with newOwner = sender
+
+    -- If the provider does not settle in time, the sender can take the money back alone.
+    choice CancelAfterDeadline : ContractId Holding
+      controller sender
+      do
+        now <- getTime
+        assertMsg "The provider still has time to settle" (now > settleBy)
+        exercise escrowCid MoveTo with newOwner = sender

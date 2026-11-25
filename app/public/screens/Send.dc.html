@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Swiftline send money</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+button,input{font-family:inherit}
+.cta:hover{background:#1D3FC0 !important}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F5F7FB; color: #0B1B33; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+<div style="flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 56px 20px 16px; display: flex; flex-direction: column; gap: 18px">
+
+<div style="display: flex; align-items: center; gap: 12px">
+<a href="Home.dc.html" aria-label="Back to home" style="width: 44px; height: 44px; border-radius: 14px; border: 1px solid #DCE3F0; background: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B1B33" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+<span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.02em">Send money</span>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E1E7F2; border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+<label for="amt" style="font-size: 13px; color: #55657E">You send</label>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<input id="amt" type="text" inputmode="decimal" value="{{amountText}}" onChange="{{onAmount}}" style="flex: 1 1 0; min-width: 0; border: none; outline: none; background: transparent; font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 36px; color: #0B1B33; padding: 0">
+<span style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #DCE6FF; color: #1D3FC0; font-weight: 700; font-size: 14px">USD</span>
+</div>
+<span style="font-size: 13px; color: #55657E">Available: {{availText}}</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 13px; color: #55657E; font-weight: 500">Where is the money going?</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{targets}}" as="t" hint-placeholder-count="4">
+<button onClick="{{t.pick}}" style="min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid {{t.border}}; background: {{t.bg}}; color: {{t.fg}}; font-weight: 600; font-size: 14px; cursor: pointer">{{t.code}} · {{t.country}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="background: #0B1B33; color: #FFFFFF; border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #B8C4DA">Recipient gets</span>
+<div style="display: flex; align-items: baseline; justify-content: space-between"><span style="font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 700; font-size: 36px; color: #7FE3BC">{{receiveText}}</span><span style="font-weight: 700">{{targetCode}}</span></div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E1E7F2; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 14px">
+<div style="display: flex; justify-content: space-between"><span style="color: #55657E">Rate (locked for 10 min)</span><span style="font-weight: 600">{{rateText}}</span></div>
+<div style="display: flex; justify-content: space-between"><span style="color: #55657E">Fee</span><span style="font-weight: 600">{{feeText}}</span></div>
+<div style="display: flex; justify-content: space-between"><span style="color: #55657E">Total taken</span><span style="font-weight: 600">{{totalText}}</span></div>
+</div>
+
+<div style="background: #FFFFFF; border: 1px solid #E1E7F2; border-radius: 18px; padding: 14px 16px; display: flex; align-items: center; gap: 12px">
+<span style="width: 44px; height: 44px; border-radius: 50%; background: #FFE9D2; color: #9A3F00; display: flex; align-items: center; justify-content: center; font-weight: 700">RK</span>
+<div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 15px">Ravi K.</span><span style="font-size: 13px; color: #55657E">Bank account ending 4821</span></div>
+<span style="font-size: 13px; color: #1D3FC0; font-weight: 600">Change</span>
+</div>
+
+</div>
+
+<div style="flex: 0 0 auto; padding: 12px 20px 32px; background: #FFFFFF; border-top: 1px solid #E1E7F2">
+<a class="cta" href="Cashout.dc.html" onClick="{{onContinue}}" style="display: flex; align-items: center; justify-content: center; min-height: 54px; border-radius: 16px; background: #2F5BFF; color: #FFFFFF; font-weight: 600; font-size: 16px">Continue</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { amount: this.sw.flow.amount, target: this.sw.flow.target };
+}
+async load() { await this.sw.refresh(); }
+renderVals() {
+const targets = [
+{ code: 'INR', country: 'India', rate: 83 },
+{ code: 'MXN', country: 'Mexico', rate: 17.1 },
+{ code: 'PHP', country: 'Philippines', rate: 56.5 },
+{ code: 'NGN', country: 'Nigeria', rate: 1500 }
+];
+const fmt = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const raw = parseFloat(String(this.state.amount).replace(/,/g, ''));
+const amount = isNaN(raw) || raw < 0 ? 0 : raw;
+const cur = targets.find((t) => t.code === this.state.target) || targets[0];
+const fee = amount === 0 ? 0 : Math.max(1.5, amount * 0.006);
+const receive = Math.max(0, amount - fee) * cur.rate;
+return {
+amountText: this.state.amount,
+availText: fmt(this.sw.freeUsd()) + ' USD',
+onContinue: () => { this.sw.flow.amount = String(amount); this.sw.flow.target = this.state.target; },
+onAmount: (e) => this.setState({ amount: e.target.value }),
+targetCode: cur.code,
+receiveText: fmt(receive),
+rateText: '1 USD = ' + fmt(cur.rate) + ' ' + cur.code,
+feeText: fmt(fee) + ' USD',
+totalText: fmt(amount) + ' USD',
+targets: targets.map((t) => {
+const on = t.code === this.state.target;
+return {
+...t,
+bg: on ? '#2F5BFF' : '#FFFFFF',
+fg: on ? '#FFFFFF' : '#0B1B33',
+border: on ? '#2F5BFF' : '#D5DCEB',
+pick: () => this.setState({ target: t.code })
+};
+})
+};
+}
+}
+</script>
+</body>
+</html>

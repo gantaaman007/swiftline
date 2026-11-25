@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swiftline</title>
+<style>
+:root{--p:#2F5BFF;--dark:#0B1B33;--bg:#F5F7FB;--acc:#7FE3BC;--card:#fff;--line:#E3E8F2;--mut:#5B6B85;--bad:#C0392B}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--dark)}
+h1,h2,h3,.num{font-family:"Space Grotesk",Inter,sans-serif}
+header{background:var(--dark);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header b{font-family:"Space Grotesk";font-size:20px}header b span{color:var(--acc)}
+nav{display:flex;gap:6px;flex-wrap:wrap}nav button{background:transparent;color:#cfd8ea;border:0;padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px}
+nav button.on{background:var(--p);color:#fff}
+main{max-width:920px;margin:20px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#fff}
+.btn{background:var(--p);color:#fff;border:0;padding:12px 20px;border-radius:12px;font-size:15px;cursor:pointer;margin-top:14px}
+.btn.alt{background:#fff;color:var(--p);border:1px solid var(--p)}.btn.bad{background:#fff;color:var(--bad);border:1px solid var(--bad)}
+.btn:disabled{opacity:.5;cursor:wait}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);gap:12px}.row:last-child{border:0}
+.big{font-size:34px;font-weight:600}.mut{color:var(--mut);font-size:13px}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;background:#E8EEFF;color:var(--p)}
+.pill.ok{background:#DDF8EC;color:#0B7A52}.pill.bad{background:#FDE7E4;color:var(--bad)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.err{background:#FDE7E4;color:var(--bad);padding:10px 14px;border-radius:10px;margin-bottom:12px;display:none}
+.note{background:#FFF7E0;border:1px solid #F2DFA0;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}.tabs button{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--dark);color:#fff}
+code{background:#EEF2FA;padding:1px 6px;border-radius:6px;font-size:12px}
+</style></head><body>
+<header><b>Swift<span>line</span></b>
+<nav id="nav"></nav><span class="mut" style="margin-left:auto;color:#9fb0cc">Demo on a local Canton ledger</span></header>
+<main>
+<div class="err" id="err"></div>
+<div id="view"></div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const fmt=(n,d=2)=>Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let cfg=null,page='send',flow={},views=null,busy=false;
+const PAGES=[['send','Send'],['track','Track'],['earn','Earn'],['privacy','Privacy'],['about','Not built yet']];
+function err(m){const e=$('#err');e.textContent=m||'';e.style.display=m?'block':'none'}
+async function api(path,body){
+  err('');
+  const r=await fetch('/api/'+path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();if(!r.ok)throw new Error(j.error||'Request failed');return j;
+}
+async function act(fn){if(busy)return;busy=true;document.querySelectorAll('.btn').forEach(b=>b.disabled=true);
+  let msg='';try{await fn()}catch(e){msg=e.message}finally{busy=false;await render();if(msg)err(msg)}}
+function nav(){$('#nav').innerHTML=PAGES.map(([k,l])=>`<button data-k="${k}" class="${page===k?'on':''}" id="nav-${k}">${l}</button>`).join('');
+  document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{page=b.dataset.k;flow={};err('');render()})}
+const mine=(list,name)=>(list||[]).filter(c=>c.name===name);
+const who=(p)=>{const r=(cfg.roles||[]).find(x=>views&&views._p&&views._p[x]===p);return r||String(p).split('::')[0].replace('swiftline_','')};
+
+async function refresh(){views=await api('views')}
+async function render(){
+  nav();
+  try{ if(!cfg){cfg=await api('config')} await refresh(); }catch(e){err(e.message)}
+  const v=$('#view');
+  if(page==='send')return sendView(v);
+  if(page==='track')return trackView(v);
+  if(page==='earn')return earnView(v);
+  if(page==='privacy')return privacyView(v);
+  aboutView(v);
+}
+function balances(role,list){const m={};mine(list,'Holding').filter(h=>h.args.owner&&h.args.owner.startsWith('swiftline_'+role)).forEach(h=>m[h.args.currency]=(m[h.args.currency]||0)+Number(h.args.amount));return m}
+
+const nm=p=>String(p).split('::')[0].replace('swiftline_','').replace(/^./,c=>c.toUpperCase());
+function receiptCard(r,cid){const a=r.args||r;
+  return `<div class="row"><span>Sender</span><b>${esc(nm(a.sender))}</b></div>
+  <div class="row"><span>Recipient</span><b>${esc(nm(a.recipient))}</b></div>
+  <div class="row"><span>Paid out by</span><b>${esc(nm(a.provider))} (provider)</b></div>
+  <div class="row"><span>Amount sent</span><b>${fmt(a.sendAmount)} ${esc(a.fromCurrency)}</b></div>
+  <div class="row"><span>Fee</span><b>${fmt(a.fee)} ${esc(a.fromCurrency)}</b></div>
+  <div class="row"><span>Rate</span><b>1 ${esc(a.fromCurrency)} = ${Number(a.rate)} ${esc(a.toCurrency)}</b></div>
+  <div class="row"><span>Recipient received</span><b class="num" id="rcpt">${fmt(a.receiveAmount)} ${esc(a.toCurrency)}</b></div>
+  <div class="row"><span>Settled</span><b>${new Date(a.settledAt).toLocaleString()}</b></div>
+  <div class="row"><span>Regulator can view</span><b>${esc(nm(a.regulator))}</b></div>
+  <div class="mut" style="margin-top:8px">Receipt ID <code>${esc(cid)}</code></div>`}
+function sendView(v){
+  const sb=balances('sender',views&&views.sender);const usd=sb.USD||0;
+  const setup=`<div class="card"><div class="mut">Sender balance</div><div class="big num" id="bal">$${fmt(usd)}</div>
+   <button class="btn alt" id="setup">Set up demo data</button> <span class="mut">Creates demo funds and an identity check on the ledger. Safe to press again.</span></div>`;
+  if(flow.step==='review'){
+    const q=flow.quote.args,amt=flow.amount,fee=Math.max(Number(q.minFee),amt*Number(q.feeRate)),recv=Math.floor((amt-fee)*Number(q.rate)*100)/100;
+    v.innerHTML=setup+`<div class="card"><h2>Review</h2>
+     <div class="row"><span>You send</span><b>$${fmt(amt)} USD</b></div>
+     <div class="row"><span>Fee</span><b>$${fmt(fee)}</b></div>
+     <div class="row"><span>Rate (locked 10 min)</span><b>1 USD = ${q.rate} ${q.toCurrency}</b></div>
+     <div class="row"><span>Recipient gets</span><b class="num" id="recv">${fmt(recv)} ${q.toCurrency}</b></div>
+     <div class="mut">Funds move into escrow when you confirm. If the provider does not settle by tomorrow, you can take them back.</div>
+     <button class="btn" id="confirm">Confirm and send</button> <button class="btn alt" id="back">Back</button></div>`;
+    $('#setup').onclick=()=>act(async()=>{await api('setup',{})});
+    $('#back').onclick=()=>{flow={};render()};
+    $('#confirm').onclick=()=>act(async()=>{
+      const a=await api('accept',{quoteCid:flow.quote.cid,amount:amt});flow.transfer=a.transfer;
+      if(!flow.hold){const s=await api('settle',{transferCid:a.transfer.cid});flow.receipt=s.receipt;flow.step='receipt'}
+      else flow.step='held';});
+    return;
+  }
+  if(flow.step==='receipt'){
+    v.innerHTML=setup+`<div class="card"><span class="pill ok">Delivered</span><h2>Receipt</h2>${receiptCard(flow.receipt,flow.receipt.cid)}
+     <button class="btn" id="again">Send another</button></div>`;
+    $('#setup').onclick=()=>act(async()=>{await api('setup',{})});$('#again').onclick=()=>{flow={};render()};return;}
+  if(flow.step==='held'){
+    v.innerHTML=setup+`<div class="card"><span class="pill">In escrow</span><h2>Transfer waiting for the provider</h2>
+     <p>Your money is locked. Open <b>Track</b> to act as the provider and settle or reject it, or to cancel after the deadline.</p></div>`;
+    $('#setup').onclick=()=>act(async()=>{await api('setup',{})});return;}
+  v.innerHTML=setup+`<div class="card"><h2>Send money</h2>
+    <label>You send (USD)</label><input id="amt" type="number" min="1" step="0.01" value="500">
+    <label>Recipient country</label><select id="cur">${cfg.corridors.map(c=>`<option value="${c.code}">${c.country} (${c.code}) — 1 USD = ${c.rate}</option>`).join('')}</select>
+    <label><input type="checkbox" id="hold" style="width:auto"> Hold in escrow so I can act as provider in Track (shows reject/cancel)</label>
+    <button class="btn" id="go">Get quote</button></div>`;
+  $('#setup').onclick=()=>act(async()=>{const r=await api('setup',{});if(r.made.length)err('')});
+  $('#go').onclick=()=>act(async()=>{const amount=Number($('#amt').value);const currency=$('#cur').value;
+    const {quote}=await api('quote',{amount,currency});flow={step:'review',quote,amount,hold:$('#hold').checked}});
+}
+
+function trackView(v){
+  const prov=views&&views.provider||[];const ts=mine(prov,'RemitTransfer');
+  const sT=mine(views&&views.sender,'RemitTransfer');
+  v.innerHTML=`<div class="card"><h2>Transfers in escrow</h2>${ts.length?ts.map(t=>{const a=t.args;return `<div class="row" style="align-items:center;flex-wrap:wrap">
+    <div><b>$${fmt(a.sendAmount)} → ${fmt(a.receiveAmount)} ${a.toCurrency}</b><div class="mut">due ${new Date(a.settleBy).toLocaleString()}</div></div>
+    <div><button class="btn" data-a="settle" data-c="${t.cid}">Settle (provider)</button>
+    <button class="btn bad" data-a="reject" data-c="${t.cid}">Reject (provider)</button>
+    <button class="btn alt" data-a="cancel" data-c="${t.cid}">Cancel (sender, after deadline)</button></div></div>`}).join(''):'<p class="mut">Nothing waiting. Send with “Hold in escrow” ticked to see one here.</p>'}</div>
+    <div class="card"><h2>Receipts</h2>${mine(views&&views.sender,'Receipt').map(r=>`<details style="margin-bottom:8px"><summary><b>${fmt(r.args.sendAmount)} ${r.args.fromCurrency} → ${fmt(r.args.receiveAmount)} ${r.args.toCurrency}</b> <span class="mut">${new Date(r.args.settledAt).toLocaleString()}</span></summary>${receiptCard(r,r.cid)}</details>`).join('')||'<p class="mut">No receipts yet.</p>'}</div>`;
+  v.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>act(async()=>{await api(b.dataset.a,{transferCid:b.dataset.c})}));
+}
+
+function earnView(v){
+  const stakes=mine(views&&views.sender,'Stake');const sb=balances('sender',views&&views.sender);
+  v.innerHTML=`<div class="note">Demo rate: APR is set high so interest shows within seconds. A real rate would earn a fraction of a cent in that time, and consumer interest may be regulated.</div>
+   <div class="card"><div class="mut">USD available</div><div class="big num">$${fmt(sb.USD||0)}</div>
+   <label>Amount to lock (USD)</label><input id="eamt" type="number" step="1" value="100">
+   <label>APR (as a fraction, 100000 = demo)</label><input id="eapr" type="number" step="0.01" value="100000">
+   <label>Lock days</label><input id="edays" type="number" value="30">
+   <button class="btn" id="stake">Start earning</button></div>
+   <div class="card"><h2>Your stakes</h2>${stakes.length?stakes.map(s=>`<div class="row" style="align-items:center;flex-wrap:wrap"><div><b>$${fmt(s.args.principal)} USD</b><div class="mut">APR ${s.args.apr} · matures ${new Date(s.args.maturesAt).toLocaleString()}</div></div>
+    <div><button class="btn" data-a="earn/redeem" data-c="${s.cid}">Redeem (provider pays interest)</button> <button class="btn alt" data-a="earn/claim" data-c="${s.cid}">Claim principal (after maturity)</button></div></div>`).join(''):'<p class="mut">No active stakes.</p>'}</div>`;
+  $('#stake').onclick=()=>act(async()=>{await api('earn/start',{amount:Number($('#eamt').value),apr:Number($('#eapr').value),lockDays:Number($('#edays').value)})});
+  v.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>act(async()=>{await api(b.dataset.a,{stakeCid:b.dataset.c})}));
+}
+
+let who2='sender';
+function privacyView(v){
+  const roles=cfg.roles;const list=(views&&views[who2])||[];
+  const cnt={};list.forEach(c=>cnt[c.name]=(cnt[c.name]||0)+1);
+  v.innerHTML=`<div class="card"><h2>Who can see what</h2><p class="mut">Each tab queries the ledger as that party only. Recipient and outsider should see far less than the provider.</p>
+   <div class="tabs">${roles.map(r=>`<button data-r="${r}" class="${who2===r?'on':''}">${r}</button>`).join('')}</div>
+   <div class="row"><span>Contracts visible</span><b id="count">${list.length}</b></div>
+   ${Object.entries(cnt).map(([k,n])=>`<div class="row"><span>${k}</span><b>${n}</b></div>`).join('')||'<p class="mut">Nothing visible.</p>'}
+   ${list.filter(c=>c.name==='Holding').map(h=>`<div class="row"><span class="mut">Holding owned by ${esc(String(h.args.owner).split('::')[0])}</span><span>${fmt(h.args.amount)} ${h.args.currency}</span></div>`).join('')}</div>`;
+  v.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{who2=b.dataset.r;render()});
+}
+function aboutView(v){v.innerHTML=`<div class="card"><h2>Designed, not connected</h2><p>These screens are in the design but have no contracts behind them, so they are not in this app: Recurring transfers, Alerts, Request money, and Cash out.</p><p class="mut">Rates, KYC and payouts are mocked. All parties run on one participant with one admin token.</p></div>`}
+render();
+</script></body></html>

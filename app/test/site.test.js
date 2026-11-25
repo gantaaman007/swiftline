@@ -1,0 +1,36 @@
+// Browser test of the full website (site.html). Usage: node test/site.test.js [url]   (SHOTS=dir to save screenshots)
+const { chromium } = require('playwright');
+const url = (process.argv[2] || 'http://localhost:8090') + '/site.html';
+const shots = process.env.SHOTS || '/tmp/site';
+require('fs').mkdirSync(shots, { recursive: true });
+const ok = (c, m) => { if (!c) { console.error('FAIL:', m); process.exitCode = 1; } else console.log('ok  :', m); };
+(async () => {
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && !/status of 400|fonts|TUNNEL/.test(m.text()) && errs.push(m.text()));
+  const T = () => p.textContent('#view'); const shot = (n) => p.screenshot({ path: `${shots}/${n}.png`, fullPage: true });
+  await p.goto(url + '#dash'); await p.waitForSelector('#setup'); await p.click('#setup'); await p.waitForTimeout(900);
+  ok(/1,200\.00/.test(await T()), 'dashboard balance 1,200.00'); await shot('1-dash');
+  await p.click('#nav-send'); await p.waitForSelector('#amt'); await p.fill('#amt', '500');
+  ok((await p.textContent('#recv')).includes('41,251.00'), 'send preview 41,251.00'); await shot('2-send');
+  await p.click('#go'); await p.waitForSelector('text=Delivered', { timeout: 15000 }); await p.waitForSelector('details[open]');
+  ok(/41,251\.00 INR/.test(await T()) && /SW-/.test(await T()), 'receipt shows full details'); await shot('3-activity-receipt');
+  await p.click('#nav-send'); await p.waitForSelector('#amt'); await p.fill('#amt', '100'); await p.check('#hold'); await p.click('#go');
+  await p.waitForSelector('button[data-a=reject]'); await shot('4-activity-escrow');
+  await p.click('button[data-a=cancel]'); await p.waitForTimeout(700);
+  ok(/still has time/.test(await p.textContent('#err')), 'early cancel shows an error');
+  await p.click('button[data-a=reject]'); await p.waitForTimeout(700);
+  ok((await p.locator('button[data-a=reject]').count()) === 0, 'reject clears escrow');
+  await p.click('#nav-earn'); await p.waitForSelector('#eapr'); await p.fill('#eapr', '10000000'); await p.fill('#eamt', '100'); await p.click('#stake');
+  await p.waitForSelector('button[data-a="earn/redeem"]'); await p.waitForTimeout(2500); await shot('5-earn');
+  await p.click('button[data-a="earn/redeem"]'); await p.waitForTimeout(800);
+  ok((await p.locator('button[data-a="earn/redeem"]').count()) === 0, 'redeem closes the stake');
+  await p.click('#nav-privacy'); await p.click('.chip[data-r=outsider]'); ok((await p.textContent('#count')) === '0', 'outsider sees 0 contracts');
+  await p.click('.chip[data-r=recipient]'); ok(!/KycAttestation|Quote|Stake/.test(await T()), 'recipient sees no KYC, quote or stake'); await shot('6-privacy');
+  await p.click('#nav-regulator'); await p.waitForSelector('text=Regulator view'); await p.waitForTimeout(500);
+  ok(/Settled/.test(await T()), 'regulator lists settled transfer'); await shot('7-regulator');
+  await p.setViewportSize({ width: 390, height: 844 }); await p.click('#nav-send'); await p.waitForSelector('#amt'); await shot('8-send-phone');
+  const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2); ok(!overflow, 'no horizontal scroll on phone width');
+  ok(errs.length === 0, 'no browser errors ' + errs.join(' | '));
+  await b.close();
+})();

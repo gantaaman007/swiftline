@@ -1,0 +1,43 @@
+module Remit.Token where
+
+-- A simple currency token. One Holding is an amount of one currency owned by one party.
+-- The issuer is the only signatory, so the issuer controls what counts as a valid token.
+template Holding
+  with
+    issuer : Party
+    owner : Party
+    currency : Text
+    amount : Decimal
+    viewers : [Party]
+  where
+    signatory issuer
+    observer owner :: viewers
+    ensure amount > 0.0
+
+    -- Move the whole holding to someone else.
+    choice MoveTo : ContractId Holding
+      with
+        newOwner : Party
+      controller owner
+      do create this with owner = newOwner; viewers = []
+
+    -- Hand the holding to an escrow holder while letting another party keep seeing it.
+    -- This is what lets the sender cancel an expired transfer: they can still see the escrow.
+    choice Lock : ContractId Holding
+      with
+        newOwner : Party
+        viewer : Party
+      controller owner
+      do create this with owner = newOwner; viewers = [viewer]
+
+    -- Split into (the part taken, the remainder). Both stay with the owner.
+    choice Split : (ContractId Holding, ContractId Holding)
+      with
+        splitAmount : Decimal
+      controller owner
+      do
+        assertMsg "Split amount must be positive and smaller than the holding"
+          (splitAmount > 0.0 && splitAmount < amount)
+        part <- create this with amount = splitAmount
+        rest <- create this with amount = amount - splitAmount
+        pure (part, rest)
